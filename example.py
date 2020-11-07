@@ -92,8 +92,8 @@ def main():
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    ax.scatter(x, y, s=15, c='r', marker="o", label='target')
-    ax.scatter(xx, yy, s=15, c='b', marker="o", label='source')
+    ax.scatter(x, y, s=15, c='r', marker="o", label='source')
+    ax.scatter(xx, yy, s=15, c='b', marker="o", label='target')
     ax.scatter(xxx, yyy, s=15, c='g', marker="x", label='aligned')
     plt.legend(loc='upper left')
     plt.show()
