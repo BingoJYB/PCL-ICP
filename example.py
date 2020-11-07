@@ -3,7 +3,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-def get_rectangle(left, top, right, bottom):
+def get_rectangle(left_top_vertex, right_bottom_vertex):
+    left, top = left_top_vertex
+    right, bottom = right_bottom_vertex
+
     left_edge = np.stack(
         (np.array([left] * (top - bottom)), np.arange(bottom, top, 1)), axis=1)
     top_edge = np.stack(
@@ -18,10 +21,17 @@ def get_rectangle(left, top, right, bottom):
 
 def get_homo_coord(rectangle):
     row, col = rectangle.shape
-    padded = np.ones((row, col + 1))
-    padded[:, :-1] = rectangle
+    homo_rect = np.ones((row, col + 1))
+    homo_rect[:, :-1] = rectangle
 
-    return padded
+    return homo_rect
+
+
+def convert_2d_to_3d(rectangle):
+    rect = rectangle.copy()
+    rect[:, -1] = 0
+
+    return rect.astype(np.float32)
 
 
 def get_center(rectangle):
@@ -56,27 +66,54 @@ def translate(rectangle, trans_x=0, trans_y=0):
     return np.dot(rectangle, T.T)
 
 
+def run_icp(points_in, points_out, max_iter=10):
+    cloud_in = pcl.PointCloud()
+    cloud_out = pcl.PointCloud()
+
+    cloud_in.from_array(points_in)
+    cloud_out.from_array(points_out)
+
+    icp = cloud_in.make_GeneralizedIterativeClosestPoint()
+    converged, transf, estimate, fitness = icp.gicp(
+        cloud_in, cloud_out, max_iter=1000)
+
+    return converged, transf, estimate, fitness
+
+
 def main():
-    left, top, right, bottom = 1, 21, 21, 11
+    left_top_vertex = (1, 21)
+    right_bottom_vertex = (21, 11)
     rotation_angle = 60
     trans_x, trans_y = 30, 20
+    max_iter = 1000
 
-    rectangle = get_rectangle(left, top, right, bottom)
+    rectangle = get_rectangle(left_top_vertex, right_bottom_vertex)
     homo_rect = get_homo_coord(rectangle)
     center = get_center(rectangle)
-    transformed_rect = rotate(homo_rect, rotation_angle, center)
-    transformed_rect = translate(transformed_rect, trans_x, trans_y)
+    transformed_homo_rect = rotate(homo_rect, rotation_angle, center)
+    transformed_homo_rect = translate(transformed_homo_rect, trans_x, trans_y)
+    rectangle_3d = convert_2d_to_3d(homo_rect)
+    transformed_rect_3d = convert_2d_to_3d(transformed_homo_rect)
+
+    converged, transf, estimate, fitness = run_icp(
+        transformed_rect_3d, rectangle_3d, max_iter)
+
+    transformed_homo_rect_3d = get_homo_coord(transformed_rect_3d)
+    estimated_rect = np.dot(transformed_homo_rect_3d, transf.T)
 
     x = rectangle[:, 0]
     y = rectangle[:, 1]
-    xx = transformed_rect[:, 0]
-    yy = transformed_rect[:, 1]
+    xx = transformed_rect_3d[:, 0]
+    yy = transformed_rect_3d[:, 1]
+    xxx = estimated_rect[:, 0]
+    yyy = estimated_rect[:, 1]
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
     ax.scatter(x, y, s=15, c='r', marker="o", label='target')
     ax.scatter(xx, yy, s=15, c='b', marker="o", label='source')
+    ax.scatter(xxx, yyy, s=15, c='g', marker="x", label='estimated')
     plt.legend(loc='upper left')
     plt.show()
 
